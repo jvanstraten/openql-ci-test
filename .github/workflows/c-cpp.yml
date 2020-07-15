@@ -41,7 +41,7 @@ jobs:
         echo "Downloading GLPK..."
         Invoke-WebRequest https://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-4.65/winglpk-4.65.zip -OutFile glpk.zip -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
         Expand-Archive glpk.zip
-        echo "::add-path::C:\deps\glpk-4.65\w64"
+        echo "::set-env name=WINGLPK_ROOT_DIR::C:\deps\glpk-4.65"
     - name: configure
       run: mkdir build && cd build && cmake ..
     - name: build
