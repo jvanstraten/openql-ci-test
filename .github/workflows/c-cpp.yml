@@ -12,10 +12,36 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, windows-2016]
+        os: [windows-latest]
+        python-version: [3.7]
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: pscx
+      shell: powershell
+      run: |
+        Set-ExecutionPolicy -ExecutionPolicy RemoteSigned
+        Install-Module -AllowClobber -Name Pscx -RequiredVersion 3.2.2 -Force -AcceptLicense
+    - name: win-deps
+      shell: powershell
+      run: |
+        mkdir C:\deps
+        cd C:\deps
+        echo "Downloading flex/bison..."
+        Invoke-WebRequest https://downloads.sourceforge.net/project/winflexbison/old_versions/win_flex_bison-2.5.20.zip -OutFile flex-bison.zip -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
+        mkdir flex-bison
+        Expand-Archive flex-bison.zip flex-bison
+        echo "::add-path::C:\deps\flex-bison"
+        echo "Downloading SWIG..."
+        Invoke-WebRequest https://downloads.sourceforge.net/project/swig/swigwin/swigwin-4.0.0/swigwin-4.0.0.zip -OutFile swig.zip -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
+        Expand-Archive swig.zip
+        echo "::add-path::C:\deps\swigwin-4.0.0"
+        echo "Downloading GLPK..."
+        Invoke-WebRequest https://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-4.65/winglpk-4.65.zip -OutFile glpk.zip -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
+        Expand-Archive glpk.zip
+        echo "::add-path::C:\deps\glpk-4.65\w64"
     - name: configure
       run: mkdir build && cd build && cmake ..
     - name: build
