@@ -43,7 +43,7 @@ jobs:
         Expand-Archive glpk.zip
         echo "::set-env name=WINGLPK_ROOT_DIR::C:\deps\glpk-4.65"
     - name: Install Python dependencies
-      run: python -m pip install wheel pytest
+      run: python -m pip install wheel pytest numpy
     - name: Build Python module
       run: python setup.py bdist_wheel
       env:
