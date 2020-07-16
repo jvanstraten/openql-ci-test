@@ -19,19 +19,19 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: recursive
-    - name: pscx
+    - name: Install Powershell Community Extensions
       shell: powershell
       run: |
         Set-ExecutionPolicy -ExecutionPolicy RemoteSigned
         Install-Module -AllowClobber -Name Pscx -RequiredVersion 3.2.2 -Force -AcceptLicense
-    - name: win-deps
+    - name: Install build dependencies
       shell: powershell
       run: |
-        mkdir C:\deps
+        $dir = mkdir C:\deps
         cd C:\deps
         echo "Downloading flex/bison..."
         Invoke-WebRequest https://downloads.sourceforge.net/project/winflexbison/old_versions/win_flex_bison-2.5.20.zip -OutFile flex-bison.zip -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
-        mkdir flex-bison
+        $dir = mkdir flex-bison
         Expand-Archive flex-bison.zip flex-bison
         echo "::add-path::C:\deps\flex-bison"
         echo "Downloading SWIG..."
@@ -42,9 +42,17 @@ jobs:
         Invoke-WebRequest https://downloads.sourceforge.net/project/winglpk/winglpk/GLPK-4.65/winglpk-4.65.zip -OutFile glpk.zip -UserAgent [Microsoft.PowerShell.Commands.PSUserAgent]::FireFox
         Expand-Archive glpk.zip
         echo "::set-env name=WINGLPK_ROOT_DIR::C:\deps\glpk-4.65"
-    - name: configure
-      run: mkdir build && cd build && cmake ..
-    - name: build
-      run: cmake --build build --config Debug
-    - name: test
-      run: cd build && ctest
+    - name: Install Python dependencies
+      run: python -m pip install wheel pytest
+    - name: Build Python module
+      run: python setup.py build
+    - name: Install Python module
+      run: python -m pip install --no-index -f pybuild\dist qutechopenql
+    - name: Run Python tests
+      run: python -m pytest
+    #- name: configure
+      #run: mkdir build && cd build && cmake ..
+    #- name: build
+      #run: cmake --build build --config Debug
+    #- name: test
+      #run: cd build && ctest
