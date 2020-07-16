@@ -69,6 +69,8 @@ class build_ext(_build_ext):
         if not os.path.exists(cbuild_dir):
             os.makedirs(cbuild_dir)
         with local.cwd(cbuild_dir):
+            build_type = os.environ.get('OPENQL_BUILD_TYPE', 'Release')
+
             cmd = (local['cmake'][root_dir]
                 ['-DOPENQL_BUILD_PYTHON=YES']
                 ['-DCMAKE_INSTALL_PREFIX=' + prefix_dir]
@@ -83,13 +85,26 @@ class build_ext(_build_ext):
                 # dealing with R(UN)PATH nonsense on Linux/OSX as much as
                 # possible.
                 ['-DBUILD_SHARED_LIBS=NO']
+
+                # Build type can be set using an environment variable.
+                ['-DCMAKE_BUILD_TYPE=' + build_type]
             )
+
+            # Unitary decomposition can be disabled using an environment
+            # variable.
             if 'OPENQL_DISABLE_UNITARY' in os.environ:
                 cmd = cmd['-DWITH_UNITARY_DECOMPOSITION=OFF']
+
+            # C++ tests can be enabled using an environment variable. They'll
+            # be run before the install.
+            if 'OPENQL_BUILD_TESTS' in os.environ:
+                cmd = cmd['-DOPENQL_BUILD_TESTS=ON']
+
+            # Run cmake configuration.
             cmd & FG
 
             # Do the build with the given number of parallel threads.
-            cmd = local['cmake']['--build']['.']
+            cmd = local['cmake']['--build']['.']['--config'][build_type]
             if nprocs != '1':
                 try:
                     parallel_supported = tuple(local['cmake']('--version').split('\n')[0].split()[-1].split('.')) >= (3, 12)
@@ -100,6 +115,10 @@ class build_ext(_build_ext):
                 elif not sys.platform.startswith('win'):
                     cmd = cmd['--']['-j'][nprocs]
             cmd & FG
+
+            # Run the C++ tests if requested.
+            if 'OPENQL_BUILD_TESTS' in os.environ:
+                cmd = local['cmake']['--build']['.']['--target']['test'] & FG
 
             # Do the install.
             try:
