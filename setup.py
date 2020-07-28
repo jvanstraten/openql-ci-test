@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 
-# TODO: clean includes once done
-import os, platform, shutil, sys, subprocess
-from distutils.command.bdist import bdist as _bdist
-from distutils.command.sdist import sdist as _sdist
-from distutils.command.build import build as _build
-from distutils.command.clean import clean as _clean
-from setuptools.command.egg_info import egg_info as _egg_info
-from setuptools.command.install import install as _install
-from setuptools.command.build_ext import build_ext as _build_ext
-import distutils.cmd
-import distutils.log
-from setuptools import setup, Extension, find_packages
-from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
-import re
+import os, platform, shutil, sys, re
+from setuptools import setup, Extension
+
+from distutils.command.clean        import clean        as _clean
+from setuptools.command.build_ext   import build_ext    as _build_ext
+from distutils.command.build        import build        as _build
+from setuptools.command.install     import install      as _install
+from distutils.command.bdist        import bdist        as _bdist
+from wheel.bdist_wheel              import bdist_wheel  as _bdist_wheel
+from distutils.command.sdist        import sdist        as _sdist
+from setuptools.command.egg_info    import egg_info     as _egg_info
 
 root_dir   = os.getcwd()                        # root of the repository
 src_dir    = root_dir   + os.sep + 'src'        # C++ source directory
@@ -55,6 +52,22 @@ class build_ext(_build_ext):
     def run(self):
         from plumbum import local, FG, ProcessExecutionError
 
+        # If we were previously built in a different directory, nuke the cbuild
+        # dir to prevent inane CMake errors. This happens when the user does
+        # pip install . after building locally.
+        if os.path.exists(cbuild_dir + os.sep + 'CMakeCache.txt'):
+            with open(cbuild_dir + os.sep + 'CMakeCache.txt', 'r') as f:
+                for line in f.read().split('\n'):
+                    line = line.split('#')[0].strip()
+                    if not line:
+                        continue
+                    if line.startswith('OpenQL_BINARY_DIR:STATIC'):
+                        config_dir = line.split('=', maxsplit=1)[1]
+                        if os.path.realpath(config_dir) != os.path.realpath(cbuild_dir):
+                            print('removing pybuild/cbuild to avoid CMakeCache error')
+                            shutil.rmtree(cbuild_dir)
+                        break
+
         # Figure out how many parallel processes to build with.
         if self.parallel:
             nprocs = str(self.parallel)
@@ -94,6 +107,11 @@ class build_ext(_build_ext):
             # variable.
             if 'OPENQL_DISABLE_UNITARY' in os.environ:
                 cmd = cmd['-DWITH_UNITARY_DECOMPOSITION=OFF']
+
+            # Initial placement support can be enabled using an environment
+            # variable.
+            if 'OPENQL_ENABLE_INITIAL_PLACEMENT' in os.environ:
+                cmd = cmd['-DWITH_INITIAL_PLACEMENT=ON']
 
             # C++ tests can be enabled using an environment variable. They'll
             # be run before the install.
@@ -222,10 +240,16 @@ setup(
         'sdist': sdist,
     },
 
-    extras_require={'develop': ['pytest', 'numpy']},
     setup_requires = [
         'plumbum',
         'delocate; platform_system == "Darwin"',
     ],
+    install_requires = [
+        'msvc-runtime; platform_system == "Windows"',
+    ],
+    tests_require = [
+        'pytest', 'numpy'
+    ],
+
     zip_safe=False
 )

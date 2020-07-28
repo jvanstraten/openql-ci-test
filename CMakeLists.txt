@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-cmake_policy(VERSION 3.1)
 
 project(OpenQL C CXX)
 
@@ -79,10 +78,23 @@ option(
     ON
 )
 
+# Whether initial placement should be enabled. This requires one of GLPK, ILOG,
+# or COIN to be installed and findable by lemon's build system. Only GLPK seems
+# to work on present-day systems; on Linux it's probably in your package
+# manager, on Mac it's `brew install glpk`, and on Windows you can use winglpk
+# (see below). Unfortunately, GLPK is GPL-licensed, and therefore cannot be
+# distributed in an Apache project, so this option is off by default until a
+# non-GPL replacement is found.
+option(
+    WITH_INITIAL_PLACEMENT
+    "Whether initial placement support should be enabled"
+    OFF
+)
+
 # The following snippit helps finding GLPK from a Windows build package as
 # from https://sourceforge.net/projects/winglpk/files/winglpk/. Simply set
 # it to the root folder of the extracted zip file.
-if(DEFINED ENV{WINGLPK_ROOT_DIR})
+if(WITH_INITIAL_PLACEMENT AND DEFINED ENV{WINGLPK_ROOT_DIR})
     string(REPLACE "\\" "/" WINGLPK_ROOT_DIR "$ENV{WINGLPK_ROOT_DIR}")
     set(GLPK_INCLUDE_DIR "${WINGLPK_ROOT_DIR}/src" CACHE STRING "glpk include")
     mark_as_advanced(GLPK_INCLUDE_DIR)
@@ -164,7 +176,12 @@ add_library(ql
     "${CMAKE_CURRENT_SOURCE_DIR}/src/arch/cc/vcd.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/cqasm/cqasm_reader.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/unitary.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/mapper.cc"
 )
+
+# This definition is used to define OPENQL_DECLSPEC for __declspec. More info:
+# https://docs.microsoft.com/en-us/cpp/cpp/declspec?view=vs-2019
+TARGET_COMPILE_DEFINITIONS(ql PRIVATE BUILDING_OPENQL)
 
 # There is no distinction between public and private header files right now,
 # and they'r all in the source directory. Note the / at the end of the path;
@@ -194,6 +211,12 @@ endif()
 # This speeds up the build, but of course breaks unitary decomposition.
 if(NOT WITH_UNITARY_DECOMPOSITION)
     target_compile_definitions(ql PRIVATE WITHOUT_UNITARY_DECOMPOSITION)
+endif()
+
+# Use a mock version of unitary.cc if WITH_UNITARY_DECOMPOSITION is false.
+# This speeds up the build, but of course breaks unitary decomposition.
+if(WITH_INITIAL_PLACEMENT)
+    target_compile_definitions(ql PRIVATE INITIALPLACE)
 endif()
 
 
@@ -229,13 +252,13 @@ target_include_directories(lemon INTERFACE
 )
 target_link_libraries(ql PUBLIC lemon)
 
-# The OpenQL code uses lemon's Mip; ensure that LEMON's configuration supports
+# Initial places uses lemon's Mip; ensure that LEMON's configuration supports
 # it. Annoyingly, LEMON's build just silently removes it when it's missing the
 # necessary dependencies. Also annoying: the variable LEMON_HAVE_MIP is a
 # local variable, so we can't use it... and have to resort to checking this
 # cache variable instead.
-if(NOT LEMON_DEFAULT_MIP)
-    message(SEND_ERROR "Missing ilog/coin/glpk (-dev/-devel) library for lemon (one of the three is needed)")
+if(WITH_INITIAL_PLACEMENT AND NOT LEMON_DEFAULT_MIP)
+    message(SEND_ERROR "Missing ilog/coin/glpk (-dev/-devel) library for lemon (one of the three is needed for initial placement support)")
 endif()
 
 # Even more annoying stuff: LEMON doesn't install itself in the right place on
